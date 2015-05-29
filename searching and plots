@@ -21,6 +21,10 @@ combustionNEI <- NEI[NEI$SCC %in% combustionSCC,]
 
 #aggregate function - great for summing groups
 tot_emission_yearwise <-aggregate(NEI$Emissions, list(NEI$year), sum)
+#summarise function - similar to aggregate - check this might be specific to the dplyr package
+
+
+byYear <- group_by(NEI,year) %>% summarize(Emissions=sum(Emissions)) 
 
 #downloading, checking if file exists, and unzipping
 library('dplyr')
@@ -38,3 +42,27 @@ ifelse(!exists('NEI'),
 ifelse(!exists('SCC'),
        SCC <- readRDS("Source_Classification_Code.rds"),("data already loaded.")
 )
+
+# another search example
+coal.codes <- as.character(SCC[(grep(
+      "coal",SCC$Short.Name,ignore.case = T)),"SCC"])
+NEI.coal <- filter(NEI,(SCC %in% coal.codes))
+NEI.coal.yearly <- summarize(group_by(NEI.coal,year),emissions=sum(Emissions))
+
+#Example of searching for multiple words
+motor.vehicle.codes <- as.character(SCC[(
+      grep("motor vehicle|motorcycle|bus|truck|car",SCC$Short.Name,ignore.case = T)),"SCC"])
+NEI.motor.vehicle <- filter(NEI,(SCC %in% motor.vehicle.codes))
+NEI.motor.vehicle.yearly.fips <- summarize(group_by(NEI.motor.vehicle,year,fips),emissions=sum(Emissions))
+
+#creating a linear regression line
+mod <- lm(byYear$Emissions ~ byYear$year)
+
+#get details about regression line
+summary(mod)
+
+#plotting a function
+mod <- lm(byYear$Emissions ~ byYear$year)
+
+
+

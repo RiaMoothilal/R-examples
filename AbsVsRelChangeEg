@@ -1,0 +1,52 @@
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(gridExtra)
+
+## Load the emissions dataset and classification datasets. 
+## The emissions dataset is already filtered for the
+## years we are interested in.
+NEI <- readRDS("summarySCC_PM25.rds")
+SCC <- readRDS("Source_Classification_Code.rds")
+
+# Find classification codes related to motor vehicles
+veh <- filter(SCC,grepl("vehicle",tolower(EI.Sector)))
+
+# Filter for location and classification and summarize by year and city
+byYearCity <- filter(NEI, fips=="24510" | fips=="06037", SCC %in% veh$SCC) %>%
+  group_by(year,fips) %>% 
+  summarize(Emissions=sum(Emissions))
+
+# Get the first year, just for generality
+minY <- min(byYearCity$year)                # Minimum (starting) year
+minYE <- filter(byYearCity, year == minY)   # Emissions for the starting year
+
+# Add a a column to contain the absolute increase over 1999 (absolute and relative) 
+# and the city name to embellish the plots
+byYearCity <- byYearCity %>%
+  mutate(increase=Emissions - unlist(minYE[minYE$fips == fips, "Emissions"])) %>%
+  mutate(incpct= 100 * increase / unlist(minYE[minYE$fips == fips, "Emissions"])) %>%
+  mutate(city=sapply(fips, switch, "24510" = "Baltimore", "06037" = "Los Angeles"))
+  
+# Convert to short-form data frame to make it easier to use ggplot2
+m <- melt(byYearCity,id=c("year","city"),measure=c("increase","incpct"))
+
+# Build two plots with multiple facets, one for each city. These plots correspond
+# to the absolute and relative variation vs. 1999
+
+png(filename = "plot6.png", width = 600, height = 800)
+p1 <- ggplot(data=m[m$variable=="increase",]) + geom_line(aes(year,value),color="blue") 
+p1 <- p1 + facet_grid(. ~ city) 
+p1 <- p1 + ylab("Emissions diff.") + ggtitle("Absolute variation in emissions vs. 1999\nin Baltimore and Los Angeles")
+p1 <- p1 + scale_y_continuous(limits=c(-1000,1000), breaks=seq(-1000,1000,100)) 
+p1 <- p1 + geom_abline(intercept=0, slope=0, color="black")
+
+p2 <- ggplot(data=m[m$variable=="incpct",]) + geom_line(aes(year,value),color="blue") 
+p2 <- p2 + facet_grid(. ~ city) 
+p2 <- p2 + ylab("% Emissions diff.") + ggtitle("Percentual Variation in emissions vs. 1999\nin Baltimore and Los Angeles")
+p2 <- p2 + scale_y_continuous(limits=c(-100,100), breaks=seq(-100,100,10)) 
+p2 <- p2 + geom_abline(intercept=0, slope=0, color="black")
+
+grid.arrange(p1,p2)
+
+dev.off()
